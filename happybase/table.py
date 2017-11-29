@@ -484,7 +484,7 @@ class Table(object):
             batch.delete(row, columns)
 
     def batch(self, timestamp=None, batch_size=None, transaction=False,
-              wal=True):
+              wal=True, flush_time_interval=None):
         """Create a new batch operation for this table.
 
         This method returns a new :py:class:`Batch` instance that can be used
@@ -511,12 +511,17 @@ class Table(object):
         .. versionadded:: 0.7
            `wal` argument
 
+        If given, the `flush_time_interval` argument specifies the time
+        interval(in ms) after which the to send the mutations to the
+        server. By default this is unbounded.
+
         :param bool transaction: whether this batch should behave like
                                  a transaction (only useful when used as a
                                  context manager)
         :param int batch_size: batch size (optional)
         :param int timestamp: timestamp (optional)
         :param wal bool: whether to write to the WAL (optional)
+        :param int flush_time_interval : time interval(in ms) flush to server (optional)
 
         :return: Batch instance
         :rtype: :py:class:`Batch`

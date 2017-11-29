@@ -1,14 +1,17 @@
 """
 HappyBase Batch module.
 """
-
+import datetime
 from collections import defaultdict
 import logging
 from numbers import Integral
+import signal
 
 import six
 
 from Hbase_thrift import BatchMutation, Mutation
+
+from happybase.util import RepeatedTimer
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +22,9 @@ class Batch(object):
     This class cannot be instantiated directly; use :py:meth:`Table.batch`
     instead.
     """
+
     def __init__(self, table, timestamp=None, batch_size=None,
-                 transaction=False, wal=True):
+                 transaction=False, wal=True, flush_time_interval=None):
         """Initialise a new Batch instance."""
         if not (timestamp is None or isinstance(timestamp, Integral)):
             raise TypeError("'timestamp' must be an integer or None")
@@ -32,18 +36,52 @@ class Batch(object):
             if not batch_size > 0:
                 raise ValueError("'batch_size' must be > 0")
 
+        if flush_time_interval is not None:
+            if transaction:
+                raise TypeError("'transaction' cannot be used when "
+                                "'flush_time_interval' is specified")
+            if not flush_time_interval > 0:
+                raise ValueError("'flush_time_interval' must be > 0")
+            self._flush_time_interval = flush_time_interval
+            self._flush_timer = RepeatedTimer(self._flush_time_interval, self._send_by_timer)
+
         self._table = table
         self._batch_size = batch_size
         self._timestamp = timestamp
         self._transaction = transaction
         self._wal = wal
+        self._last_flush = datetime.datetime.now()
         self._families = None
         self._reset_mutations()
+        signal.signal(signal.SIGINT, self.handler)
+
+    def handler(self, signum, frame):
+        logger.info("Sending by signal '%s' for '%s' (%d mutations)",
+                    signum, self._table.name, self._mutation_count)
+        self.send()
+
+    def start_timer(self):
+        """Start the repetitive timer to send mutations to server."""
+        if self._flush_time_interval:
+            self._flush_timer.start()
+
+    def stop_timer(self):
+        """Stop the repetitive timer."""
+        if self._flush_timer.is_running:
+            self._flush_timer.stop()
 
     def _reset_mutations(self):
         """Reset the internal mutation buffer."""
         self._mutations = defaultdict(list)
         self._mutation_count = 0
+
+    def _send_by_timer(self):
+        now = datetime.datetime.now()
+        if self._batch_size and (now - self._last_flush).seconds * 1000 >= self._flush_time_interval:
+            logger.debug("Sending by timer for '%s' (%d mutations)",
+                         self._table.name, self._mutation_count)
+            self.send()
+            self._last_flush = now
 
     def send(self):
         """Send the batch to the server."""
@@ -90,6 +128,7 @@ class Batch(object):
         self._mutation_count += len(data)
         if self._batch_size and self._mutation_count >= self._batch_size:
             self.send()
+            self._last_flush = datetime.datetime.now()
 
     def delete(self, row, columns=None, wal=None):
         """Delete data from the table.
