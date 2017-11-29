@@ -5,12 +5,12 @@ These functions are not part of the public API.
 """
 
 import re
+from threading import Timer
 
 import six
 from six.moves import range
 
 CAPITALS = re.compile('([A-Z])')
-
 
 try:
     # Python 2.7 and up
@@ -25,6 +25,38 @@ except ImportError:
             raise RuntimeError(
                 "No OrderedDict implementation available; please "
                 "install the 'ordereddict' Package from PyPI.")
+
+
+class RepeatedTimer(object):
+    """Repeatedly call a function after a specified number of milliseconds:
+
+                t = RepeatedTimer(10.0, f, args=None, kwargs=None)
+                t.start()
+                t.stop()     # stop the timer
+
+        """
+    def __init__(self, interval, fnc, *args, **kwargs):
+        self._timer = None
+        self.interval = interval
+        self.function = fnc
+        self.args = args
+        self.kwargs = kwargs
+        self.is_running = False
+
+    def _run(self):
+        self.is_running = False
+        self.start()
+        self.function(*self.args, **self.kwargs)
+
+    def start(self):
+        if not self.is_running:
+            self._timer = Timer(int(self.interval/1000), self._run)
+            self._timer.start()
+            self.is_running = True
+
+    def stop(self):
+        self._timer.cancel()
+        self.is_running = False
 
 
 def camel_case_to_pep8(name):
@@ -66,7 +98,7 @@ def ensure_bytes(str_or_bytes, binary_type=six.binary_type,
         return str_or_bytes.encode('utf-8')
     raise TypeError(
         "input must be a text or byte string, got {}"
-        .format(type(str_or_bytes).__name__))
+            .format(type(str_or_bytes).__name__))
 
 
 def bytes_increment(b):
@@ -84,5 +116,5 @@ def bytes_increment(b):
     for i in range(len(b) - 1, -1, -1):
         if b[i] != 0xff:
             b[i] += 1
-            return bytes(b[:i+1])
+            return bytes(b[:i + 1])
     return None
