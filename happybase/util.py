@@ -33,7 +33,6 @@ class RepeatedTimer(object):
                 t = RepeatedTimer(10.0, f, args=None, kwargs=None)
                 t.start()
                 t.stop()     # stop the timer
-
         """
     def __init__(self, interval, fnc, *args, **kwargs):
         self._timer = None

@@ -50,7 +50,7 @@ class Batch(object):
         self._timestamp = timestamp
         self._transaction = transaction
         self._wal = wal
-        self._last_flush = datetime.datetime.now()
+        self._last_send = datetime.datetime.now()
         self._families = None
         self._reset_mutations()
         signal.signal(signal.SIGINT, self.handler)
@@ -76,12 +76,13 @@ class Batch(object):
         self._mutation_count = 0
 
     def _send_by_timer(self):
+        """Check last send time and send mutations to server."""
         now = datetime.datetime.now()
-        if self._batch_size and (now - self._last_flush).seconds * 1000 >= self._flush_time_interval:
+        if self._batch_size and (now - self._last_send).seconds * 1000 >= self._flush_time_interval:
             logger.debug("Sending by timer for '%s' (%d mutations)",
                          self._table.name, self._mutation_count)
             self.send()
-            self._last_flush = now
+            self._last_send = now
 
     def send(self):
         """Send the batch to the server."""
@@ -128,7 +129,7 @@ class Batch(object):
         self._mutation_count += len(data)
         if self._batch_size and self._mutation_count >= self._batch_size:
             self.send()
-            self._last_flush = datetime.datetime.now()
+            self._last_send = datetime.datetime.now()
 
     def delete(self, row, columns=None, wal=None):
         """Delete data from the table.

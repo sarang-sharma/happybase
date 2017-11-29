@@ -512,7 +512,7 @@ class Table(object):
            `wal` argument
 
         If given, the `flush_time_interval` argument specifies the time
-        interval(in ms) after which the to send the mutations to the
+        interval(in ms) after which the batch should send the mutations to the
         server. By default this is unbounded.
 
         :param bool transaction: whether this batch should behave like
