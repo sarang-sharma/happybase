@@ -59,8 +59,7 @@ class Batch(object):
         """Reset the internal mutation buffer."""
         self._mutations = defaultdict(list)
         self._mutation_count = 0
-        if self._flush_timer.is_running:
-            self._flush_timer.stop()
+        self._flush_timer.stop()
         self._last_send = _time.time()
 
     def _send_by_timer(self):
