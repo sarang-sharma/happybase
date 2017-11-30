@@ -53,22 +53,15 @@ class Batch(object):
         self._last_send = datetime.datetime.now()
         self._families = None
         self._reset_mutations()
+        self._start_timer()
         signal.signal(signal.SIGINT, self.handler)
 
-    def handler(self, signum, frame):
-        logger.info("Sending by signal '%s' for '%s' (%d mutations)",
-                    signum, self._table.name, self._mutation_count)
-        self.send()
-
-    def start_timer(self):
+    def _start_timer(self):
         """Start the repetitive timer to send mutations to server."""
+        if not self._flush_timer:
+            raise AssertionError("Timer is not running.")
         if self._flush_time_interval:
             self._flush_timer.start()
-
-    def stop_timer(self):
-        """Stop the repetitive timer."""
-        if self._flush_timer.is_running:
-            self._flush_timer.stop()
 
     def _reset_mutations(self):
         """Reset the internal mutation buffer."""
@@ -76,13 +69,24 @@ class Batch(object):
         self._mutation_count = 0
 
     def _send_by_timer(self):
-        """Check last send time and send mutations to server."""
+        """Check if last send time is more than time interval, then send mutations to server."""
         now = datetime.datetime.now()
         if self._batch_size and (now - self._last_send).seconds * 1000 >= self._flush_time_interval:
             logger.debug("Sending by timer for '%s' (%d mutations)",
                          self._table.name, self._mutation_count)
             self.send()
             self._last_send = now
+
+    def handler(self, signum, frame):
+        """Signal handler to send mutations to server."""
+        logger.info("Sending by signal '%s' for '%s' (%d mutations)",
+                    signum, self._table.name, self._mutation_count)
+        self.send()
+
+    def stop_timer(self):
+        """Stop the repetitive timer."""
+        if self._flush_timer.is_running:
+            self._flush_timer.stop()
 
     def send(self):
         """Send the batch to the server."""
