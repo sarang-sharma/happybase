@@ -6,6 +6,7 @@ from collections import defaultdict
 import logging
 from numbers import Integral
 import signal
+import time as _time
 
 import six
 
@@ -50,43 +51,31 @@ class Batch(object):
         self._timestamp = timestamp
         self._transaction = transaction
         self._wal = wal
-        self._last_send = datetime.datetime.now()
         self._families = None
         self._reset_mutations()
-        self._start_timer()
         signal.signal(signal.SIGINT, self.handler)
-
-    def _start_timer(self):
-        """Start the repetitive timer to send mutations to server."""
-        if not self._flush_timer:
-            raise AssertionError("Timer is not running.")
-        if self._flush_time_interval:
-            self._flush_timer.start()
 
     def _reset_mutations(self):
         """Reset the internal mutation buffer."""
         self._mutations = defaultdict(list)
         self._mutation_count = 0
+        if self._flush_timer.is_running:
+            self._flush_timer.stop()
+        self._last_send = _time.time()
 
     def _send_by_timer(self):
         """Check if last send time is more than time interval, then send mutations to server."""
-        now = datetime.datetime.now()
-        if self._batch_size and (now - self._last_send).seconds * 1000 >= self._flush_time_interval:
+        now = _time.time()
+        if self._mutation_count > 0 and (_time.time() - self._last_send) * 1000 >= self._flush_time_interval:
             logger.debug("Sending by timer for '%s' (%d mutations)",
                          self._table.name, self._mutation_count)
             self.send()
-            self._last_send = now
 
     def handler(self, signum, frame):
         """Signal handler to send mutations to server."""
         logger.info("Sending by signal '%s' for '%s' (%d mutations)",
                     signum, self._table.name, self._mutation_count)
         self.send()
-
-    def stop_timer(self):
-        """Stop the repetitive timer."""
-        if self._flush_timer.is_running:
-            self._flush_timer.stop()
 
     def send(self):
         """Send the batch to the server."""
@@ -104,7 +93,6 @@ class Batch(object):
         else:
             self._table.connection.client.mutateRowsTs(
                 self._table.name, bms, self._timestamp, {})
-
         self._reset_mutations()
 
     #
@@ -122,6 +110,9 @@ class Batch(object):
         if wal is None:
             wal = self._wal
 
+        if not self._mutation_count or self._mutation_count == 0:
+            self._flush_timer.start()
+
         self._mutations[row].extend(
             Mutation(
                 isDelete=False,
@@ -133,7 +124,6 @@ class Batch(object):
         self._mutation_count += len(data)
         if self._batch_size and self._mutation_count >= self._batch_size:
             self.send()
-            self._last_send = datetime.datetime.now()
 
     def delete(self, row, columns=None, wal=None):
         """Delete data from the table.
