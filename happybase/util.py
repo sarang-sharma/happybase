@@ -30,7 +30,7 @@ except ImportError:
 class RepeatedTimer(object):
     """Repeatedly call a function after a specified number of milliseconds:
 
-                t = RepeatedTimer(10.0, f, args=None, kwargs=None)
+                t = RepeatedTimer(1000.0, f, args=None, kwargs=None)
                 t.start()
                 t.stop()     # stop the timer
         """

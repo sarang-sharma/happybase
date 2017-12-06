@@ -25,7 +25,7 @@ class Batch(object):
     """
 
     def __init__(self, table, timestamp=None, batch_size=None,
-                 transaction=False, wal=True, flush_time_interval=None):
+                 transaction=False, wal=True, send_time_interval=None):
         """Initialise a new Batch instance."""
         if not (timestamp is None or isinstance(timestamp, Integral)):
             raise TypeError("'timestamp' must be an integer or None")
@@ -37,17 +37,17 @@ class Batch(object):
             if not batch_size > 0:
                 raise ValueError("'batch_size' must be > 0")
 
-        if flush_time_interval is not None:
+        if send_time_interval is not None:
             if transaction:
                 raise TypeError("'transaction' cannot be used when "
                                 "'flush_time_interval' is specified")
-            if not flush_time_interval > 0:
+            if not send_time_interval > 0:
                 raise ValueError("'flush_time_interval' must be > 0")
-            self._flush_time_interval = flush_time_interval
-            self._flush_timer = RepeatedTimer(self._flush_time_interval, self._send_by_timer)
 
         self._table = table
         self._batch_size = batch_size
+        self._send_time_interval = send_time_interval
+        self._send_timer = RepeatedTimer(self._send_time_interval, self._send_by_timer)
         self._timestamp = timestamp
         self._transaction = transaction
         self._wal = wal
@@ -59,13 +59,14 @@ class Batch(object):
         """Reset the internal mutation buffer."""
         self._mutations = defaultdict(list)
         self._mutation_count = 0
-        self._flush_timer.stop()
         self._last_send = _time.time()
+        if self._send_by_timer():
+            self._send_timer.stop()
 
     def _send_by_timer(self):
         """Check if last send time is more than time interval, then send mutations to server."""
         now = _time.time()
-        if self._mutation_count > 0 and (_time.time() - self._last_send) * 1000 >= self._flush_time_interval:
+        if self._mutation_count > 0 and (_time.time() - self._last_send) * 1000 >= self._send_time_interval:
             logger.debug("Sending by timer for '%s' (%d mutations)",
                          self._table.name, self._mutation_count)
             self.send()
@@ -109,8 +110,9 @@ class Batch(object):
         if wal is None:
             wal = self._wal
 
-        if not self._mutation_count or self._mutation_count == 0:
-            self._flush_timer.start()
+        if self._send_time_interval:
+            if not self._mutation_count and self._mutation_count == 0:
+                self._send_timer.start()
 
         self._mutations[row].extend(
             Mutation(

@@ -484,7 +484,7 @@ class Table(object):
             batch.delete(row, columns)
 
     def batch(self, timestamp=None, batch_size=None, transaction=False,
-              wal=True, flush_time_interval=None):
+              wal=True, send_time_interval=None):
         """Create a new batch operation for this table.
 
         This method returns a new :py:class:`Batch` instance that can be used
@@ -521,7 +521,7 @@ class Table(object):
         :param int batch_size: batch size (optional)
         :param int timestamp: timestamp (optional)
         :param wal bool: whether to write to the WAL (optional)
-        :param int flush_time_interval : time interval(in ms) flush to server (optional)
+        :param int send_time_interval : send time interval(in ms) (optional)
 
         :return: Batch instance
         :rtype: :py:class:`Batch`
