@@ -19,7 +19,7 @@ class Batch(object):
     This class cannot be instantiated directly; use :py:meth:`Table.batch`
     instead.
     """
-    def __init__(self, table, timestamp=None, batch_size=None,
+    def __init__(self, table, timestmap=None, batch_size=None,
                  transaction=False, wal=True):
         """Initialise a new Batch instance."""
         if not (timestamp is None or isinstance(timestamp, Integral)):
